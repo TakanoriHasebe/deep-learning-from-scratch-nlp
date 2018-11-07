@@ -20,7 +20,7 @@ class MatMul:
         dx = np.dot(dout, W.T)
         dW = np.dot(self.x.T, dout)
         self.grads[0][...] = dW
-        print(self.grads)
+        # print(self.grads)
         return dx
 
 class Sigmoid:
