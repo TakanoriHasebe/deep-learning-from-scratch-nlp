@@ -146,6 +146,14 @@ def convert_one_hot(corpus, vocab_size):
     
     return one_hot
 
+def to_cpu(x):
+    import numpy
+    if type(x) == numpy.ndarray:
+        return x
+    return np.asnumpy(x)
+
+x = np.array([1,2,3])
+to_cpu(x)
 
 
 
