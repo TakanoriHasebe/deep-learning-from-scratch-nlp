@@ -152,8 +152,12 @@ def to_cpu(x):
         return x
     return np.asnumpy(x)
 
-x = np.array([1,2,3])
-to_cpu(x)
+def to_gpu(x):
+    import cupy
+    if type(x) == cupy.ndarray:
+        return x
+    return cupy.asarray(x)
+    
 
 
 
