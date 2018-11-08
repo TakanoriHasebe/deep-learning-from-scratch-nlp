@@ -1,5 +1,5 @@
 import numpy as np
-from common.functions import softmax, cross_entropy_error
+from .functions import softmax, cross_entropy_error
 
 class MatMul:
     def __init__(self, W):
@@ -106,3 +106,26 @@ class Embedding:
         for i, word_id in enumerate(self.idx):
             dW[word_id] += dout[i]
         return None
+
+class SigmoidWithLoss:
+    def __init__(self):
+        self.params, self.grads = [], []
+        self.loss = None
+        self.y = None # sigmoidの出力
+        self.t = None # 教師データ
+
+    def forward(self, x, t):
+        self.t = t
+        self.y = 1 / (1 + np.exp(-x)) # シグモイド
+
+        self.loss = cross_entropy_error(np.c_[1 - self.y, self.y], self.t)
+        # print(self.loss)
+
+        return self.loss
+
+    def backward(self, dout=1):
+        batch_size = self.t.shape[0]
+
+        dx = (self.y - self.t) * dout / batch_size
+        return dx
+
