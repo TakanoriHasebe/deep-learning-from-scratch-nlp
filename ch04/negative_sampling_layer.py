@@ -59,21 +59,34 @@ class UnigramSampler:
             p = self.word_p.copy()
             # print(p)
             target_idx = target[i]
-            print(target_idx)
+            # print(target_idx)
             p[target_idx] = 0
             p /= p.sum()
-            print(p)
+            # print(p)
         
             negative_sample[i, :] = np.random.choice(self.vocab_size, size=self.sample_size, replace=False, p=p)
             # print(negative_sample)
 
         return negative_sample
 
-corpus = np.array([0, 1, 2, 3, 4, 1, 2, 3])
-power = 0.75
-sample_size = 2
 
-sampler = UnigramSampler(corpus, power, sample_size)
-target = np.array([1,3,0])
-negative_sample = sampler.get_negative_sample(target)
-print(negative_sample)
+class NegativeSamplingLoss:
+    def __init__(self, W, corpus, power=0.75, sample_size=5):
+        self.sample_size = sample_size
+        self.sampler = UnigramSampler(corpus, power, sample_size)
+        self.loss_layers = [SigmoidWithLoss() for _ in range(sample_size + 1)] # for文で多くのクラスを作成している
+        self.embed_dot_layers = [EmbeddingDot(W) for _ in range(sample_size + 1)] # 同様にfor文で多くのクラスを作成している
+
+        self.params, self.grads = [], []
+        for layer in self.embed_dot_layers:
+            self.params += layer.params
+            self.grads += layer.grads
+
+    def forward(self, h, target):
+        batch_size = target.shape[0]
+        negative_sample = self.sampler.get_negative_sample(target)
+
+        # 正例のフォワード
+        score = self.embed_dot_layers[0].forward(h, target)
+        correct_label = np.ones(batch_size, dtype=np.int32)
+        loss = self.loss_layers[0].forward(score, )
