@@ -59,7 +59,7 @@ class TimeRNN:
 
         for t in range(T):
             layer = RNN(*self.params)
-            self.h = layer.forward(xs[:, t, :], self.h)
+            self.h = layer.forward(xs[:, t, :], self.h) # バッチごとにforwardしている。
             hs[:, t, :] = self.h
             self.layers.append(layer)
 
@@ -103,7 +103,7 @@ class TimeEmbedding:
 
         for t in range(T):
             layer = Embedding(self.W)
-            out[:, t:, :] = layer.forward(xs[:, t])
+            out[:, t, :] = layer.forward(xs[:, t])
             self.layers.append(layer)
 
         return out

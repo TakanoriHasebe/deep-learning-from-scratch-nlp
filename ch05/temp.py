@@ -1,40 +1,92 @@
 import numpy as np
 
-class TimeAffine:
-    def __init__(self, W, b):
-        self.params = [W, b]
-        self.grads = [np.zeros_like(W), np.zeros_like(b)]
-        self.x = None
+a = np.array([[[0,2,3], [1,2,3], [1,2,3], [1,2,3]], [[0,2,3], [1,2,3], [1,2,3], [1,2,3]]])
+print(a[:, 0, :])
 
-    def forward(self, x):
-        N, T, D = x.shape
-        W, b = self.params
-        rx = x.reshape(N*T, -1)
-        out = np.dot(rx, W) + b
-        self.x = x
-        return out.reshape(N, T, -1)
+class RNN:
+    def __init__(self, Wx, Wh, b):
+        self.params = [Wx, Wh, b]
+        self.grads = [np.zeros_like(Wx), np.zeros_like(Wh), np.zeros_like(b)]
+        self.cache = None
 
-    def backward(self, dout):
-        x = self.x
-        N, T, D = x.shape
-        W, b = self.params
+    def forward(self, x, h_prev):
+        Wx, Wh, b = self.params
+        t = np.dot(h_prev, Wh) + np.dot(x, Wh) + b
+        h_next = np.tanh(t)
 
-        dout = dout.reshape(N*T, -1)
-        rx = x.reshape(N*T, -1)
+        self.cache = (x, h_prev, h_next)
+        return h_next
 
-        db = np.sum(dout, axis=0)
-        dW = np.dot(rx.T, dout)
-        dx = np.dot(dout, W.T)
-        dx = dx.reshape(*x.shape)
+    def backward(self, dh_next):
+        Wx, Wh, b = self.params
+        x, h_prev, h_next = self.cache
 
-        self.grads[0][...] = dW
-        self.grads[1][...] = db
+        dt = dh_next * (1 - h_next ** 2)
+        db = np.sum(dt, axis=0)
+        dWh = np.dot(h_prev.T, dt)
+        dh_prev = np.dot(dt, Wh.T)
+        dWx = np.dot(x.T, dt)
+        dx = np.dot(dt, Wx.T)
 
-        return dx
+        self.grads[0][...] = dWx
+        self.grads[1][...] = dWh
+        self.grads[2][...] = db
 
-W = np.random.randn(5, 3)
-b = np.random.randn(3)
-tm = TimeAffine(W, b)
-x = np.random.randn(1, 3, 5)
-tm.forward(x)
+        return dx, dh_prev
+
+class TimeRNN:
+    def __init__(self, Wx, Wh, b, stateful=False):
+        self.params = [Wx, Wh, b]
+        self.grads = [np.zeros_like(Wx), np.zeros_like(Wh), np.zeros_like(b)]
+        self.layers = None
+        self.h, self.dh = None, None
+        self.stateful = stateful
+
+    def set_state(self, h):
+        self.h = h
+
+    def reset_state(self):
+        self.h = None
+
+    def forward(self, xs):
+        Wx, Wh, b = self.params
+        N, T, D = xs.shape
+        D, H = Wx.shape
+
+        self.layers = []
+        hs = np.empty((N, T, H), dtype='f') 
+
+        if not self.stateful or self.h is None:
+            self.h = np.zeros((N, H), dtype='f')
+
+        for t in range(T):
+            layer = RNN(*self.params)
+            self.h = layer.forward(xs[:, t, :], self.h)
+            hs[:, t, :] = self.h
+            self.layers.append(layer)
+
+        return hs
+
+    def backward(self, dhs):
+        Wx, Wh, b = self.params
+        N, T, H = dhs.shape
+        D, H = Wx.shape
+
+        dxs = np.empty((N, T, D), dtype='f')
+        dh = 0
+        grads = [0, 0, 0]
+        for t in reversed(range(T)):
+            layer = self.layers[t]
+            dx, dh = layer.backward(dhs[:, t, :] + dh)
+            dxs[:, t, :] = dx
+
+            for i, grad in enumerate(layer.grads):
+                grads[i] += grad
+
+        for i, grad in enumerate(grads):
+            self.grads[i][...] = grad
+        self.dh = dh
+
+        return dxs
+
 

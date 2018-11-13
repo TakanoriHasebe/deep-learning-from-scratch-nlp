@@ -24,7 +24,7 @@ class SimpleRnnlm:
         ]
         self.loss_layer = TimeSoftmaxWithLoss()
         self.rnn_layer = self.layers[1]
-
+    
         # すべての重みと勾配をリストにまとめる
         self.params, self.grads = [], []
         for layer in self.layers:
