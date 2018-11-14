@@ -1,5 +1,5 @@
 import numpy as np
-from functions import softmax, cross_entropy_error
+from .functions import softmax, cross_entropy_error
 
 class MatMul:
     def __init__(self, W):
