@@ -224,6 +224,41 @@ class LSTM:
         self.cache = (x, h_prev, c_prev, i, f, g, o, c_next)
         return h_next, c_next
 
+    def backward(self, dh_next, dc_next):
+        Wx, Wh, b = self.params
+        x, h_prev, c_prev, i, f, g, o, c_next = self.cache
+
+        tanh_c_next = np.tanh(c_next)
+
+        ds = dc_next + (dh_next * o) * (1 - tanh_c_next ** 2)
+
+        dc_prev = ds * f
+
+        di = ds * g
+        df = ds * c_prev
+        do = dh_next * tanh_c_next
+        dg = ds * i
+
+        di *= i * (1 - i)
+        df *= f * (1 - f)
+        do *= o * (1 - o)
+        dg *= (1 - g ** 2)
+
+        dA = np.hstack((df, dg, di, do))
+
+        dWh = np.dot(h_prev.T, dA)
+        dWx = np.dot(x.T, dA)
+        db = dA.sum(axis=0)
+
+        self.grads[0][...] = dWx
+        self.grads[1][...] = dWh
+        self.grads[2][...] = db
+
+        dx = np.dot(dA, Wx.T)
+        dh_prev = np.dot(dA, Wh.T)
+
+        return dx, dh_prev, dc_prev
+
 class TimeLSTM:
     def __init__(self, Wx, Wh, b, stateful=False):
         self.params = [Wx, Wh, b]
@@ -283,7 +318,25 @@ class TimeLSTM:
     def reset_state(self):
         self.h, self.c = None, None
 
+class TimeDropout:
+    def __init__(self, dropout_ratio=0.5):
+        self.params, self.grads = [], []
+        self.dropout_ratio = dropout_ratio
+        self.mask = None
+        self.train_flg = True
 
+    def forward(self, xs):
+        if self.train_flg:
+            flg = np.random.rand(*xs.shape) > self.dropout_ratio
+            scale = 1 / (1.0 - self.dropout_ratio)
+            self.mask = flg.astype(np.float32) * scale
+
+            return xs * self.mask
+        else:
+            return xs
+
+    def backward(self, dout):
+        return dout * self.mask
 
 
 
