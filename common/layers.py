@@ -1,12 +1,13 @@
+# coding: utf-8
 import numpy as np
-from .functions import softmax, cross_entropy_error
+from common.config import GPU
+from common.functions import softmax, cross_entropy_error
+
 
 class MatMul:
     def __init__(self, W):
         self.params = [W]
-        # print(self.params)
         self.grads = [np.zeros_like(W)]
-        # print(self.grads)
         self.x = None
 
     def forward(self, x):
@@ -14,28 +15,14 @@ class MatMul:
         out = np.dot(x, W)
         self.x = x
         return out
-    
+
     def backward(self, dout):
         W, = self.params
         dx = np.dot(dout, W.T)
         dW = np.dot(self.x.T, dout)
         self.grads[0][...] = dW
-        # print(self.grads)
         return dx
 
-class Sigmoid:
-    def __init__(self):
-        self.params, self.grads = [], []
-        self.out = None
-
-    def forward(self, x):
-        out = 1 / (1 + np.exp(-x))
-        self.out = out
-        return out
-
-    def backward(self, dout):
-        dx = dout * (1.0 - self.out) * self.out
-        return dx
 
 class Affine:
     def __init__(self, W, b):
@@ -57,8 +44,24 @@ class Affine:
 
         self.grads[0][...] = dW
         self.grads[1][...] = db
-
         return dx
+
+
+class Softmax:
+    def __init__(self):
+        self.params, self.grads = [], []
+        self.out = None
+
+    def forward(self, x):
+        self.out = softmax(x)
+        return self.out
+
+    def backward(self, dout):
+        dx = self.out * dout
+        sumdx = np.sum(dx, axis=1, keepdims=True)
+        dx -= self.out * sumdx
+        return dx
+
 
 class SoftmaxWithLoss:
     def __init__(self):
@@ -87,39 +90,34 @@ class SoftmaxWithLoss:
 
         return dx
 
-class Embedding:
-    def __init__(self, W):
-        self.params = [W]
-        self.grads = [np.zeros_like(W)]
-        self.idx = None
-    
-    def forward(self, idx):
-        W, = self.params
-        self.idx = idx
-        out = W[idx]
+
+class Sigmoid:
+    def __init__(self):
+        self.params, self.grads = [], []
+        self.out = None
+
+    def forward(self, x):
+        out = 1 / (1 + np.exp(-x))
+        self.out = out
         return out
 
     def backward(self, dout):
-        dW, = self.grads
-        dW[...] = 0
+        dx = dout * (1.0 - self.out) * self.out
+        return dx
 
-        for i, word_id in enumerate(self.idx):
-            dW[word_id] += dout[i]
-        return None
 
 class SigmoidWithLoss:
     def __init__(self):
         self.params, self.grads = [], []
         self.loss = None
-        self.y = None # sigmoidの出力
-        self.t = None # 教師データ
+        self.y = None  # sigmoidの出力
+        self.t = None  # 教師データ
 
     def forward(self, x, t):
         self.t = t
-        self.y = 1 / (1 + np.exp(-x)) # シグモイド
+        self.y = 1 / (1 + np.exp(-x))
 
         self.loss = cross_entropy_error(np.c_[1 - self.y, self.y], self.t)
-        # print(self.loss)
 
         return self.loss
 
@@ -129,3 +127,41 @@ class SigmoidWithLoss:
         dx = (self.y - self.t) * dout / batch_size
         return dx
 
+
+class Dropout:
+    '''
+    http://arxiv.org/abs/1207.0580
+    '''
+    def __init__(self, dropout_ratio=0.5):
+        self.params, self.grads = [], []
+        self.dropout_ratio = dropout_ratio
+        self.mask = None
+
+    def forward(self, x, train_flg=True):
+        if train_flg:
+            self.mask = np.random.rand(*x.shape) > self.dropout_ratio
+            return x * self.mask
+        else:
+            return x * (1.0 - self.dropout_ratio)
+
+    def backward(self, dout):
+        return dout * self.mask
+
+
+class Embedding:
+    def __init__(self, W):
+        self.params = [W]
+        self.grads = [np.zeros_like(W)]
+        self.idx = None
+
+    def forward(self, idx):
+        W, = self.params
+        self.idx = idx
+        out = W[idx]
+        return out
+
+    def backward(self, dout):
+        dW, = self.grads
+        dW[...] = 0
+        np.add.at(dW, self.idx, dout)
+        return None
